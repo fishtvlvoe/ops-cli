@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 const HELP = `ops ${VERSION}
 
@@ -19,12 +19,14 @@ const HELP = `ops ${VERSION}
   ops status [--change name]       看 Spectra / GSD 狀態
   ops doctor [--json]              檢查本機工具
   ops setup                        顯示缺少工具與安裝提示
+  ops setup --install-missing      嘗試安裝可安全判斷的缺少工具
 
 常用選項:
   --json                           輸出 JSON
   --change <name>                  指定 Spectra change
   --archive                        finish 通過後執行 spectra archive
   --yes                            搭配 --archive 跳過 Spectra 確認
+  --install-missing                setup 時安裝可支援的缺少工具
 `;
 
 function main(argv = process.argv.slice(2), env = process.env, cwd = process.cwd()) {
@@ -43,7 +45,7 @@ function main(argv = process.argv.slice(2), env = process.env, cwd = process.cwd
     }
 
     if (command === 'doctor') return doctor({ cwd, json: parsed.flags.json });
-    if (command === 'setup') return setup({ cwd, json: parsed.flags.json });
+    if (command === 'setup') return setup({ cwd, json: parsed.flags.json, installMissing: parsed.flags.installMissing });
     if (command === 'status') return status({ cwd, json: parsed.flags.json, change: parsed.flags.change });
     if (command === 'finish') {
       return finish({
@@ -135,19 +137,43 @@ function doctor({ cwd, json }) {
   return result.ok ? 0 : 1;
 }
 
-function setup({ cwd, json }) {
+function setup({ cwd, json, installMissing = false }) {
   const project = inspectProject(cwd);
   const missing = [];
-  if (!inspectTool('git', ['--version']).found) missing.push({ item: 'git', hint: '安裝 Git。' });
-  if (!inspectTool('node', ['--version']).found) missing.push({ item: 'node', hint: '安裝 Node.js 20 以上。' });
-  if (!inspectTool('npm', ['--version']).found) missing.push({ item: 'npm', hint: '安裝 npm。' });
-  if (!inspectTool('spectra', ['--version']).found) missing.push({ item: 'spectra', hint: '安裝 Spectra CLI。' });
-  if (!project.hasSpectra) missing.push({ item: 'openspec', hint: '在專案根目錄執行 spectra init。' });
+  if (!inspectTool('git', ['--version']).found) missing.push(missingTool('git', '安裝 Git。', 'brew install git'));
+  if (!inspectTool('node', ['--version']).found) missing.push(missingTool('node', '安裝 Node.js 20 以上。', 'brew install node'));
+  if (!inspectTool('npm', ['--version']).found) missing.push(missingTool('npm', '安裝 npm。通常會跟 Node.js 一起安裝。', 'brew install node'));
+  if (!inspectTool('gh', ['--version']).found) missing.push(missingTool('gh', '安裝 GitHub CLI，讓 ops 可以建立或檢查 GitHub 倉庫。', 'brew install gh'));
+  if (!inspectTool('spectra', ['--version']).found) {
+    missing.push({
+      item: 'spectra',
+      hint: '安裝 Spectra CLI。ops 不會自動安裝，因為公開 registry 有同名非本專案 CLI，必須使用你的官方/團隊安裝來源。',
+      installCommand: null,
+      autoInstall: false,
+    });
+  }
+  if (!project.hasSpectra) missing.push({
+    item: 'openspec',
+    hint: '在專案根目錄執行 spectra init。',
+    installCommand: 'spectra init',
+    autoInstall: false,
+  });
   if (!inspectGsd(cwd).found) {
-    missing.push({ item: 'gsd', hint: '安裝 GSD Core，或先只使用 Spectra 模式。' });
+    missing.push(missingTool('gsd', '安裝 GSD Core，或先只使用 Spectra 模式。', 'npm install -g @opengsd/gsd-core'));
+  }
+  if (!project.hasGsd) missing.push({
+    item: 'gsd-project',
+    hint: '目前專案沒有 .planning/config.json，所以只能使用 Spectra 入口；GSD 深度流程需要先建立 GSD project config。',
+    installCommand: null,
+    autoInstall: false,
+  });
+
+  const installResults = installMissing ? installSupportedMissing(missing, cwd) : [];
+  if (installMissing && installResults.length > 0) {
+    return setup({ cwd, json, installMissing: false });
   }
 
-  const result = { ok: missing.length === 0, cwd, missing };
+  const result = { ok: missing.length === 0, cwd, missing, attemptedInstall: installMissing, installResults };
   if (json) {
     print(JSON.stringify(result, null, 2));
     return result.ok ? 0 : 1;
@@ -159,7 +185,12 @@ function setup({ cwd, json }) {
   }
 
   print('目前還缺這些東西:');
-  for (const item of missing) print(`- ${item.item}: ${item.hint}`);
+  for (const item of missing) {
+    print(`- ${item.item}: ${item.hint}`);
+    if (item.installCommand) print(`  建議指令: ${item.installCommand}`);
+  }
+  print('');
+  print('注意: ops setup 預設只檢查，不會默默安裝工具。要嘗試安裝可支援項目，請明確執行 ops setup --install-missing。');
   return 1;
 }
 
@@ -477,6 +508,10 @@ function parseArgs(argv) {
       flags.yes = true;
       continue;
     }
+    if (arg === '--install-missing') {
+      flags.installMissing = true;
+      continue;
+    }
     if (arg === '--change') {
       flags.change = argv[index + 1];
       index += 1;
@@ -490,6 +525,33 @@ function parseArgs(argv) {
   }
 
   return { command, flags, positionals };
+}
+
+function missingTool(item, hint, installCommand) {
+  return {
+    item,
+    hint,
+    installCommand,
+    autoInstall: Boolean(installCommand),
+  };
+}
+
+function installSupportedMissing(missing, cwd) {
+  const results = [];
+  for (const item of missing) {
+    if (!item.autoInstall || !item.installCommand) {
+      results.push({ item: item.item, skipped: true, reason: 'no_safe_auto_install' });
+      continue;
+    }
+    const command = item.installCommand;
+    const result = spawnSync('sh', ['-lc', command], {
+      cwd,
+      encoding: 'utf8',
+      stdio: 'inherit',
+    });
+    results.push({ item: item.item, command, status: result.status ?? 1 });
+  }
+  return results;
 }
 
 function ensureSpectra() {

@@ -1,5 +1,7 @@
 # ops CLI
 
+English: [README.en.md](README.en.md)
+
 `ops` 是一個很薄的本機流程入口，用自然語言把 Spectra 和 GSD 串起來。
 
 它不是取代 Spectra，也不是取代 GSD。
@@ -18,10 +20,53 @@ ops 跑收尾 gate，避免沒有證據就宣稱完成
 
 ## 安裝
 
+### 它會自動安裝前置工具嗎？
+
+**不會默默自動安裝。**
+
+`ops` 預設只會檢查環境，告訴你缺什麼。它會檢查：
+
+```text
+git
+node
+npm
+spectra
+gh
+GSD
+openspec/config.yaml
+.planning/config.json
+```
+
+`ops doctor` 可以在只有 Spectra 可用時通過，代表「Spectra 自動化入口」可用。`ops setup` 會更嚴格列出完整模式缺口，例如 GSD CLI 或 `.planning/config.json`。
+
+如果你明確執行：
+
+```bash
+ops setup --install-missing
+```
+
+它才會嘗試安裝可安全判斷的缺少工具。
+
+注意：`ops` 目前**不會自動安裝 Spectra**，因為公開 registry 上有同名或近似名稱的非本工作流 CLI，亂裝會裝錯。Spectra 必須用你的官方或團隊指定來源安裝。
+
+### 安裝 ops
+
 從 GitHub 安裝：
 
 ```bash
 npm install -g github:fishtvlvoe/ops-cli
+```
+
+或使用 installer script：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fishtvlvoe/ops-cli/main/scripts/install.sh | bash
+```
+
+如果要明確嘗試安裝可支援的缺少工具：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fishtvlvoe/ops-cli/main/scripts/install.sh | bash -s -- --install-missing
 ```
 
 本機開發：
@@ -35,15 +80,54 @@ npm link
 
 ## 使用
 
-在 Codex / Claude 裡，理想情況是 agent 背後幫你跑 `ops`。你自己也可以直接用：
+現在第一段用法是「Spectra 自動化入口」：
 
 ```bash
+ops doctor
+ops status
 ops "幫我做會員邀請功能"
 ops debug "付款後沒有寄信"
-ops status
 ops finish --change member-invite
-ops doctor
-ops setup
+```
+
+### 目前該怎麼用？
+
+```text
+想開新功能 SR
+  → ops "幫我做會員邀請功能"
+
+想開 debug SR
+  → ops debug "付款後沒有寄信"
+
+想看目前有哪些 SR
+  → ops status
+
+想收尾某個 SR
+  → ops finish --change <change-name>
+
+想檢查別人環境能不能跑
+  → ops doctor
+  → ops setup
+```
+
+### 現在還不能做什麼？
+
+目前 `ops` 還沒有深度接上 GSD 的 phase / context / execute，所以它還不會完整自動：
+
+```text
+開 SR → 拆 phase → 派 agent 實作 → 跑完整驗證 → 封存
+```
+
+現在已完成的是：
+
+```text
+自然語言 → 建 Spectra SR → 看狀態 → 收尾 gate
+```
+
+下一段才會接：
+
+```text
+Spectra SR → 產 GSD context → GSD plan / execute / verify → 回填 Spectra
 ```
 
 ## 目前第一版能做什麼

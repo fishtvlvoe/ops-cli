@@ -1,6 +1,6 @@
 {
   "name": "@fishtvlvoe/ops-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Natural-language workflow bridge for Spectra and GSD.",
   "type": "module",
   "bin": {
@@ -9,7 +9,9 @@
   "files": [
     "bin",
     "docs",
+    "scripts",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
   "scripts": {
