@@ -1,0 +1,39 @@
+{
+  "name": "@fishtvlvoe/ops-cli",
+  "version": "0.1.0",
+  "description": "Natural-language workflow bridge for Spectra and GSD.",
+  "type": "module",
+  "bin": {
+    "ops": "./bin/ops.mjs"
+  },
+  "files": [
+    "bin",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "npm test && node bin/ops.mjs --help"
+  },
+  "keywords": [
+    "spectra",
+    "gsd",
+    "sdd",
+    "agent",
+    "workflow"
+  ],
+  "author": "Fish",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fishtvlvoe/ops-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fishtvlvoe/ops-cli/issues"
+  },
+  "homepage": "https://github.com/fishtvlvoe/ops-cli#readme"
+}
