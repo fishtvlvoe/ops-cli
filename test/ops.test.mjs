@@ -28,3 +28,8 @@ test('parseArgs supports command flags and positionals', () => {
   assert.equal(parsed.flags.archive, true);
   assert.equal(parsed.flags.yes, true);
 });
+
+test('parseArgs keeps leading meta flags as commands', () => {
+  assert.equal(parseArgs(['--version']).command, '--version');
+  assert.equal(parseArgs(['--help']).command, '--help');
+});

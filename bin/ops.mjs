@@ -457,6 +457,10 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (!command && ['--help', '-h', '--version', '-v'].includes(arg)) {
+      command = arg;
+      continue;
+    }
     if (!command && !arg.startsWith('--')) {
       command = arg;
       continue;
