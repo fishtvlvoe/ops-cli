@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
 const VERSION = '0.1.0';
 
@@ -551,7 +552,7 @@ function print(message = '', stream = 'stdout') {
   target.write(`${message}\n`);
 }
 
-if (import.meta.url === `file://${resolve(process.argv[1] || '')}`) {
+if (isCliEntrypoint()) {
   process.exitCode = main();
 }
 
@@ -562,3 +563,12 @@ export {
   parseArgs,
   slugify,
 };
+
+function isCliEntrypoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
